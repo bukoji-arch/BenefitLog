@@ -17,7 +17,6 @@
             navigator.serviceWorker.register('sw.js')
                 .then(reg => {
                     console.log('Service Worker 登録成功', reg);
-                    // 新しいコードを強制的に適用するための処理
                     reg.update();
                 })
                 .catch(err => console.error('Service Worker 登録失敗', err));
@@ -333,8 +332,8 @@
 
         /* 優待カード全体：背景色をクリームベージュに変更 */
         .gift-card {
-            background: #eee !important; /* 強制的にクリームベージュにするため !important を付与 */
-            border: 1px solid #999 !important;
+            background: #fdfbf7 !important;
+            border: 1px solid #f1e5d5 !important;
             border-radius: 6px;
             padding: 8px 12px;
             transition: all 0.3s ease;
@@ -429,7 +428,7 @@
             display: flex;
             justify-content: space-between;
             padding: 3px 8px;
-            background: rgba(0, 0, 0, 0.02) !important; /* 元の固定背景色をクリア */
+            background: rgba(0, 0, 0, 0.02) !important;
             border-radius: 4px;
             border-left: 3px solid #D97706;
         }
@@ -628,16 +627,18 @@
                         </div>
                         <div class="form-group">
                             <label for="giftType">優待種別</label>
-                            <select id="giftType" required>
+                            <select id="giftType" required onchange="handleGiftTypeChange()">
                                 <option value="">選択してください</option>
                                 <option value="飲食券">飲食券</option>
                                 <option value="映画観賞券">映画観賞券</option>
                                 <option value="旅行券">旅行券</option>
+                                <option value="割引券・優待券">割引券・無料券（枚数管理）</option>
+                                <option value="その他">その他</option>
                             </select>
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="initialBalance">初期残高（円）</label>
+                        <label for="initialBalance" id="initialBalanceLabel">初期残高（円）</label>
                         <input type="number" id="initialBalance" min="1" required>
                     </div>
                     <div class="form-group">
@@ -668,7 +669,7 @@
                         <input type="text" id="usageCurrentBalance" disabled style="background: #f0f0f0;">
                     </div>
                     <div class="form-group">
-                        <label for="usedAmount">使用金額（円）</label>
+                        <label for="usedAmount" id="usedAmountLabel">使用金額（円）</label>
                         <input type="number" id="usedAmount" min="1" required>
                     </div>
                     <div class="form-group">
@@ -722,7 +723,7 @@
                     <thead>
                         <tr>
                             <th>使用日</th>
-                            <th>金額</th>
+                            <th>金額/枚数</th>
                             <th>メモ</th>
                             <th>操作</th>
                         </tr>
@@ -747,6 +748,17 @@
             currentSort = document.getElementById('sortSelect').value;
             localStorage.setItem('giftSort', currentSort);
             renderGifts();
+        }
+
+        // 入力フォームのラベル切り替え処理
+        function handleGiftTypeChange() {
+            const type = document.getElementById('giftType').value;
+            const label = document.getElementById('initialBalanceLabel');
+            if (type === '割引券・優待券') {
+                label.textContent = '初期枚数（枚）';
+            } else {
+                label.textContent = '初期残高（円）';
+            }
         }
 
         function toggleActions(btn, giftId) {
@@ -788,7 +800,10 @@
             clearPanel();
             tabBtn.classList.add('active');
             document.getElementById('panel-' + panelName).classList.add('active');
-            if (panelName === 'add') document.getElementById('companyName').focus();
+            if (panelName === 'add') {
+                document.getElementById('companyName').focus();
+                handleGiftTypeChange();
+            }
         }
 
         function toggleExpirationDate() {
@@ -851,6 +866,7 @@
             document.getElementById('panel-add').classList.add('active');
             document.getElementById('companyName').value = gift.companyName;
             document.getElementById('giftType').value = gift.giftType;
+            handleGiftTypeChange();
             document.getElementById('initialBalance').value = gift.initialBalance;
             if (gift.expirationDate) {
                 document.getElementById('noExpirationDate').checked = false;
@@ -891,7 +907,11 @@
             const gift = gifts.find(g => g.id === currentEditingGiftId);
             if (!gift) return;
 
-            if (usedAmount > gift.currentBalance) { showToast('使用金額が残高を超えています', 'error'); return; }
+            if (usedAmount > gift.currentBalance) { 
+                const unit = gift.giftType === '割引券・優待券' ? '枚数' : '金額';
+                showToast(`使用${unit}が残高を超えています`, 'error'); 
+                return; 
+            }
             gift.usageHistory.push({ id: Date.now(), usedAmount, usedDate: usedDate.toISOString(), memo });
             gift.currentBalance -= usedAmount;
             if (gift.currentBalance <= 0) gift.isArchived = true;
@@ -902,7 +922,12 @@
             currentEditingGiftId = id; const gift = gifts.find(g => g.id === id); if (!gift) return;
             clearPanel(); document.getElementById('panel-record').classList.add('active');
             document.getElementById('usageGiftName').value = gift.companyName;
-            document.getElementById('usageCurrentBalance').value = gift.currentBalance.toLocaleString() + '円';
+            
+            const isTicket = gift.giftType === '割引券・優待券';
+            const unit = isTicket ? '枚' : '円';
+            document.getElementById('usageCurrentBalance').value = gift.currentBalance.toLocaleString() + unit;
+            document.getElementById('usedAmountLabel').textContent = isTicket ? '使用枚数（枚）' : '使用金額（円）';
+            
             document.getElementById('usedAmount').value = ''; document.getElementById('memo').value = '';
         }
 
@@ -911,12 +936,14 @@
         function openHistoryModal(id) {
             const gift = gifts.find(g => g.id === id); if (!gift) return;
             const tbody = document.getElementById('historyBody'); tbody.innerHTML = '';
+            const unit = gift.giftType === '割引券・優待券' ? '枚' : '円';
+            
             if (gift.usageHistory.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;">履歴がありません</td></tr>';
             } else {
                 gift.usageHistory.forEach(r => {
                     const row = tbody.insertRow();
-                    row.innerHTML = `<td>${new Date(r.usedDate).toLocaleDateString('ja-JP')}</td><td>${r.usedAmount.toLocaleString()}円</td><td>${escapeHtml(r.memo)}</td><td><button class="button-secondary" onclick="deleteUsage(${gift.id},${r.id})">削除</button></td>`;
+                    row.innerHTML = `<td>${new Date(r.usedDate).toLocaleDateString('ja-JP')}</td><td>${r.usedAmount.toLocaleString()}${unit}</td><td>${escapeHtml(r.memo)}</td><td><button class="button-secondary" onclick="deleteUsage(${gift.id},${r.id})">削除</button></td>`;
                 });
             }
             document.getElementById('historyModal').classList.add('active');
@@ -997,9 +1024,11 @@
                         isExpired = daysLeft <= 0;
                     }
                     const per = (gift.currentBalance / gift.initialBalance) * 100;
-                    // JavaScript側で直接付与していたスタイル指定(background等)を削除し、純粋にCSSのクラス管理に変更
                     const cardClass = (isExpiring || isExpired) ? 'gift-card is-expiring' : 'gift-card';
                     const badge = isExpired ? '<span class="badge">期限切れ</span>' : (isExpiring ? '<span class="badge">期限間近</span>' : '');
+                    
+                    // 「割引券・優待券」のときは単位を「枚」にする
+                    const unit = gift.giftType === '割引券・優待券' ? '枚' : '円';
                     
                     return `<div class="${cardClass}" id="gift-${gift.id}">
                         <div class="gift-header">
@@ -1015,7 +1044,7 @@
                         <div class="gift-balance">
                             <div class="balance-info">
                                 <span class="balance-label">残高</span>
-                                <span class="balance-amount">${gift.currentBalance.toLocaleString()}円</span>
+                                <span class="balance-amount">${gift.currentBalance.toLocaleString()}${unit}</span>
                             </div>
                             <div class="progress-container">
                                 <div class="progress-bar"><div class="progress-fill" style="width:${per}%"></div></div>
@@ -1039,7 +1068,13 @@
 
         function updateStats() {
             const activeGifts = gifts.filter(g => !g.isArchived);
-            const total = activeGifts.reduce((s, g) => s + g.currentBalance, 0);
+            
+            // 「割引券・優待券（枚数管理）」以外の金額のみを合計金額に足す
+            const total = activeGifts.reduce((s, g) => {
+                if (g.giftType === '割引券・優待券') return s;
+                return s + g.currentBalance;
+            }, 0);
+            
             const exp = activeGifts.filter(g => {
                 if (!g.expirationDate) return false;
                 const diff = getStartOfDay(g.expirationDate) - getStartOfDay(new Date());
