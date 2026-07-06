@@ -330,7 +330,7 @@
             margin-top: 12px;
         }
 
-        /* 優待カード全体：背景色をクリームベージュに変更 */
+        /* 優待カード全体 */
         .gift-card {
             background: #fdfbf7 !important;
             border: 1px solid #f1e5d5 !important;
@@ -345,7 +345,6 @@
             box-shadow: 0 8px 24px rgba(217, 119, 6, 0.15);
         }
 
-        /* ヘッダー全体：アイテムを上下中央に配置しマージンを縮小 */
         .gift-header {
             display: flex;
             justify-content: space-between;
@@ -353,7 +352,6 @@
             margin-bottom: 4px;
         }
 
-        /* 銘柄名と種別を横並びにするラッパー */
         .gift-title-wrap {
             display: flex;
             align-items: baseline;
@@ -379,7 +377,6 @@
             font-size: 0.75em;
         }
 
-        /* 残高エリア：高さを中央に合わせ、マージンを縮小 */
         .gift-balance {
             display: flex;
             align-items: center;
@@ -404,7 +401,6 @@
             color: #D97706;
         }
 
-        /* プログレスバー：不要なパディングを削除 */
         .progress-container {
             flex: 1;
             padding-bottom: 0;
@@ -423,7 +419,6 @@
             background: linear-gradient(90deg, #D97706 0%, #F59E0B 100%);
         }
 
-        /* 有効期限エリア：コンパクトに微調整 */
         .gift-expiration {
             display: flex;
             justify-content: space-between;
@@ -516,7 +511,6 @@
 
         .toast.error { background: #ef4444; }
 
-        /* 期限切れ間近の強調表示 */
         .gift-card.is-expiring {
             background: #fdd !important;
             border: 1px solid #FFB6C1 !important;
@@ -532,7 +526,6 @@
             opacity: 0.8;
         }
 
-        /* 並び替えエリア：全体の上下余白をギューッと詰めて調整 */
         .sort-controls {
             margin: 0;
             display: flex;
@@ -552,7 +545,6 @@
             font-size: 0.85em;
         }
 
-        /* 操作ボタンの表示制御 */
         .gift-actions {
             display: none;
             margin-top: 10px;
@@ -632,7 +624,7 @@
                                 <option value="飲食券">飲食券</option>
                                 <option value="映画観賞券">映画観賞券</option>
                                 <option value="旅行券">旅行券</option>
-                                <option value="割引券・優待券">割引券・無料券（枚数管理）</option>
+                                <option value="割引券・優待券">割引券・優待券（枚数管理）</option>
                                 <option value="その他">その他</option>
                             </select>
                         </div>
@@ -641,15 +633,9 @@
                         <label for="initialBalance" id="initialBalanceLabel">初期残高（円）</label>
                         <input type="number" id="initialBalance" min="1" required>
                     </div>
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" id="noExpirationDate" onchange="toggleExpirationDate()">
-                            有効期限なし
-                        </label>
-                    </div>
                     <div class="form-group" id="expirationDateGroup">
                         <label for="expirationDate">有効期限</label>
-                        <input type="date" id="expirationDate">
+                        <input type="date" id="expirationDate" required>
                     </div>
                     <div class="button-group" id="giftFormButtonGroup">
                         <button type="submit" class="submit-btn">優待を追加</button>
@@ -750,7 +736,6 @@
             renderGifts();
         }
 
-        // 入力フォームのラベル切り替え処理
         function handleGiftTypeChange() {
             const type = document.getElementById('giftType').value;
             const label = document.getElementById('initialBalanceLabel');
@@ -787,15 +772,21 @@
         function clearPanel() {
             document.querySelectorAll('.menu-tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
-            if (isEditMode) closeEditForm();
+            // 編集モード中はここから勝手にcloseEditFormを呼ばない（送信時のバグを防ぐため）
         }
 
         function switchPanel(panelName) {
             const tabBtn = document.getElementById('tab-' + panelName);
             if (!tabBtn) return;
             if (tabBtn.classList.contains('active')) {
+                if (isEditMode && panelName === 'add') {
+                    closeEditForm();
+                }
                 clearPanel();
                 return;
+            }
+            if (isEditMode && panelName !== 'add') {
+                closeEditForm();
             }
             clearPanel();
             tabBtn.classList.add('active');
@@ -806,40 +797,22 @@
             }
         }
 
-        function toggleExpirationDate() {
-            const checkbox = document.getElementById('noExpirationDate');
-            const expirationDateInput = document.getElementById('expirationDate');
-            const expirationDateGroup = document.getElementById('expirationDateGroup');
-            if (checkbox.checked) {
-                expirationDateInput.disabled = true;
-                expirationDateInput.value = '';
-                expirationDateGroup.style.opacity = '0.5';
-            } else {
-                expirationDateInput.disabled = false;
-                expirationDateGroup.style.opacity = '1';
-            }
-        }
-
         function handleGiftSubmit(e) {
             e.preventDefault();
             const companyName = document.getElementById('companyName').value;
             const giftType = document.getElementById('giftType').value;
             const initialBalance = parseInt(document.getElementById('initialBalance').value, 10);
-            const noExpirationDate = document.getElementById('noExpirationDate').checked;
-            let expirationDate = null;
-
-            if (!noExpirationDate) {
-                const dateVal = document.getElementById('expirationDate').value;
-                if (!dateVal) { showToast('有効期限を選択してください', 'error'); return; }
-                expirationDate = getStartOfDay(dateVal);
-            }
+            
+            const dateVal = document.getElementById('expirationDate').value;
+            if (!dateVal) { showToast('有効期限を選択してください', 'error'); return; }
+            const expirationDate = getStartOfDay(dateVal);
 
             if (isEditMode && currentEditingGiftId) {
                 const gift = gifts.find(g => g.id === currentEditingGiftId);
                 if (gift) {
                     gift.companyName = companyName;
                     gift.giftType = giftType;
-                    gift.expirationDate = expirationDate ? expirationDate.toISOString() : null;
+                    gift.expirationDate = expirationDate.toISOString();
                     const balanceDiff = initialBalance - gift.initialBalance;
                     gift.initialBalance = initialBalance;
                     gift.currentBalance = Math.max(0, gift.currentBalance + balanceDiff);
@@ -848,11 +821,11 @@
             } else {
                 const gift = {
                     id: Date.now(), companyName, giftType, initialBalance,
-                    currentBalance: initialBalance, expirationDate: expirationDate ? expirationDate.toISOString() : null,
+                    currentBalance: initialBalance, expirationDate: expirationDate.toISOString(),
                     isArchived: false, usageHistory: []
                 };
                 gifts.push(gift); saveGifts(); renderGifts();
-                document.getElementById('giftForm').reset(); toggleExpirationDate();
+                document.getElementById('giftForm').reset();
                 showToast('優待を追加しました'); clearPanel();
             }
         }
@@ -860,22 +833,27 @@
         function editGift(id) {
             const gift = gifts.find(g => g.id === id);
             if (!gift) return;
-            isEditMode = true; currentEditingGiftId = id;
-            clearPanel();
+            
+            currentEditingGiftId = id;
+            isEditMode = true; 
+
+            // パネル切り替え
+            document.querySelectorAll('.menu-tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
             document.getElementById('tab-add').classList.add('active');
             document.getElementById('panel-add').classList.add('active');
+            
+            // 値をセット
             document.getElementById('companyName').value = gift.companyName;
             document.getElementById('giftType').value = gift.giftType;
             handleGiftTypeChange();
             document.getElementById('initialBalance').value = gift.initialBalance;
             if (gift.expirationDate) {
-                document.getElementById('noExpirationDate').checked = false;
                 document.getElementById('expirationDate').value = gift.expirationDate.split('T')[0];
             } else {
-                document.getElementById('noExpirationDate').checked = true;
                 document.getElementById('expirationDate').value = '';
             }
-            toggleExpirationDate();
+
             document.querySelector('#panel-add h2').textContent = '優待を編集';
             document.querySelector('#giftForm button[type="submit"]').textContent = '更新する';
 
@@ -920,6 +898,8 @@
 
         function openUsageForm(id) {
             currentEditingGiftId = id; const gift = gifts.find(g => g.id === id); if (!gift) return;
+            // 既存の編集モードがあれば閉じる
+            if (isEditMode) closeEditForm();
             clearPanel(); document.getElementById('panel-record').classList.add('active');
             document.getElementById('usageGiftName').value = gift.companyName;
             
@@ -1015,7 +995,7 @@
                 container.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#999;padding:20px;">優待が登録されていません</div>';
             } else {
                 container.innerHTML = activeGifts.map(gift => {
-                    let expText = '無期限'; let daysLeft = ''; let isExpiring = false; let isExpired = false;
+                    let expText = '不明'; let daysLeft = ''; let isExpiring = false; let isExpired = false;
                     if (gift.expirationDate) {
                         const diff = getStartOfDay(gift.expirationDate) - getStartOfDay(new Date());
                         daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
@@ -1027,7 +1007,6 @@
                     const cardClass = (isExpiring || isExpired) ? 'gift-card is-expiring' : 'gift-card';
                     const badge = isExpired ? '<span class="badge">期限切れ</span>' : (isExpiring ? '<span class="badge">期限間近</span>' : '');
                     
-                    // 「割引券・優待券」のときは単位を「枚」にする
                     const unit = gift.giftType === '割引券・優待券' ? '枚' : '円';
                     
                     return `<div class="${cardClass}" id="gift-${gift.id}">
@@ -1069,7 +1048,6 @@
         function updateStats() {
             const activeGifts = gifts.filter(g => !g.isArchived);
             
-            // 「割引券・優待券（枚数管理）」以外の金額のみを合計金額に足す
             const total = activeGifts.reduce((s, g) => {
                 if (g.giftType === '割引券・優待券') return s;
                 return s + g.currentBalance;
