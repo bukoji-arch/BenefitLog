@@ -2,29 +2,29 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#D97706">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#D97706">
 
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="優待トラッカー">
-<link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="BenefitLog">
+    <link rel="apple-touch-icon" href="icon-192.png">
 
-<script>
-    // サービスワーカーの登録スクリプト
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('sw.js')
-                .then(reg => {
-                    console.log('Service Worker 登録成功', reg);
-                    reg.update();
-                })
-                .catch(err => console.error('Service Worker 登録失敗', err));
-        });
-    }
-</script>
+    <script>
+        // サービスワーカーの登録スクリプト
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => {
+                        console.log('Service Worker 登録成功', reg);
+                        reg.update();
+                    })
+                    .catch(err => console.error('Service Worker 登録失敗', err));
+            });
+        }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>株主優待を管理するやーつ</title>
+    <title>BenefitLog 株主優待の管理</title>
     <style>
         * {
             margin: 0;
@@ -34,7 +34,8 @@
 
         body {
             font-family: 'Noto Sans JP', 'Inter', system-ui, -apple-system, sans-serif;
-            background: #f8fafc;
+            /* 【変更箇所】背景を明るい薄グレーにして、白いカードを引き立たせます */
+            background: #d3d4d6; 
             color: #1a1a1a;
             line-height: 1.6;
             min-height: 100vh;
@@ -198,11 +199,12 @@
             box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
         }
 
+        /* 入力フォームのカード：背景は白 */
         .card {
-            background: #ddd;
+            background: #ffffff; 
             border-radius: 12px;
             padding: 30px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
             border: 1px solid rgba(217, 119, 6, 0.1);
             margin-bottom: 20px;
         }
@@ -227,6 +229,12 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 15px;
+        }
+
+        @media (max-width: 480px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
         }
 
         label {
@@ -256,11 +264,6 @@
             box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
         }
 
-        input[type="checkbox"] {
-            margin-right: 8px;
-            accent-color: #D97706;
-        }
-
         button.submit-btn {
             background: linear-gradient(135deg, #D97706 0%, #F59E0B 100%);
             color: white;
@@ -286,13 +289,18 @@
         }
 
         .button-secondary {
-            background: #f0f0f0;
+            background: #f9f9f9;
             color: #333;
             border: 2px solid #D97706;
             padding: 10px 15px;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .button-secondary:hover {
+            background: #fffbeb;
         }
 
         .button-danger {
@@ -300,6 +308,11 @@
             color: white;
             border: none;
             cursor: pointer;
+            font-weight: 600;
+        }
+        
+        .button-danger:hover {
+            background: #dc2626;
         }
 
         .management-grid {
@@ -330,12 +343,12 @@
             margin-top: 12px;
         }
 
-        /* 優待カード全体 */
+        /* 通常の優待カード：背景は白ベース */
         .gift-card {
-            background: #fdfbf7 !important;
-            border: 1px solid #f1e5d5 !important;
-            border-radius: 6px;
-            padding: 8px 12px;
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 8px;
+            padding: 12px;
             transition: all 0.3s ease;
             box-shadow: 0 2px 5px rgba(0,0,0,0.03);
         }
@@ -345,28 +358,36 @@
             box-shadow: 0 8px 24px rgba(217, 119, 6, 0.15);
         }
 
+        /* 【復活】期限間近・期限切れのカード：薄いピンク背景 */
+        .gift-card.is-expiring {
+            background: #eee5e5 !important;
+            border: 1px solid #fca5a5 !important;
+        }
+
         .gift-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
         }
 
         .gift-title-wrap {
             display: flex;
-            align-items: baseline;
-            gap: 8px;
+            align-items: baseline; /* 横並びで文字の底辺を揃える */
+            gap: 8px;              /* 銘柄名と種別の隙間 */
+            flex-wrap: wrap;
         }
 
         .gift-title {
-            font-size: 0.95em;
+            font-size: 1em;
             font-weight: 700;
             line-height: 1.2;
+            color: #1a1a1a;
         }
 
         .gift-type {
             font-size: 0.75em;
-            color: #777;
+            color: #666;
         }
 
         .badge {
@@ -375,22 +396,25 @@
             padding: 4px 8px;
             border-radius: 4px;
             font-size: 0.75em;
+            font-weight: bold;
+            white-space: nowrap;
         }
 
         .gift-balance {
             display: flex;
             align-items: center;
             gap: 12px;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
 
         .balance-info {
             display: flex;
             flex-direction: column;
+            min-width: 70px;
         }
 
         .balance-label {
-            font-size: 0.8em;
+            font-size: 0.75em;
             color: #666;
             margin-bottom: 2px;
         }
@@ -403,7 +427,6 @@
 
         .progress-container {
             flex: 1;
-            padding-bottom: 0;
         }
 
         .progress-bar {
@@ -422,10 +445,16 @@
         .gift-expiration {
             display: flex;
             justify-content: space-between;
-            padding: 3px 8px;
-            background: rgba(0, 0, 0, 0.02) !important;
+            padding: 4px 8px;
+            background: rgba(0, 0, 0, 0.03) !important;
             border-radius: 4px;
             border-left: 3px solid #D97706;
+            margin-bottom: 4px;
+        }
+
+        .gift-card.is-expiring .gift-expiration {
+            background: rgba(239, 68, 68, 0.05) !important;
+            border-left-color: #ef4444 !important;
         }
 
         .expiration-date, .expiration-days {
@@ -433,24 +462,39 @@
             font-weight: 600;
         }
 
+        /* 操作ボタンエリア */
         .gift-actions {
+            display: none; 
+            gap: 6px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed #e2e8f0;
+        }
+
+        .gift-card.is-expanded .gift-actions {
             display: flex;
-            gap: 5px;
-            margin-top: 5px;
+            flex-wrap: wrap;
         }
 
         .gift-actions button {
             flex: 1;
-            padding: 5px;
-            font-size: 0.75em;
-            border-radius: 4px;
+            min-width: 60px;
+            padding: 6px;
+            font-size: 0.8em;
+            font-weight: 600;
+            border-radius: 6px;
             cursor: pointer;
+            transition: all 0.2s;
         }
 
         .gift-actions button:not(.button-secondary):not(.button-danger) {
             background: #D97706;
             color: white;
             border: none;
+        }
+        
+        .gift-actions button:not(.button-secondary):not(.button-danger):hover {
+            background: #B45309;
         }
 
         .history-table {
@@ -467,6 +511,7 @@
 
         .history-table th {
             border-bottom: 2px solid #D97706;
+            color: #D97706;
         }
 
         .modal {
@@ -477,6 +522,7 @@
             z-index: 1000;
             align-items: center;
             justify-content: center;
+            padding: 20px;
         }
 
         .modal.active {
@@ -486,16 +532,19 @@
         .modal-content {
             background: white;
             border-radius: 12px;
-            padding: 30px;
+            padding: 25px;
             max-width: 500px;
             width: 100%;
             position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         .modal-close {
             position: absolute;
             top: 15px; right: 15px;
             background: none; border: none; font-size: 1.5em; cursor: pointer;
+            color: #666;
         }
 
         .toast {
@@ -510,21 +559,6 @@
         }
 
         .toast.error { background: #ef4444; }
-
-        .gift-card.is-expiring {
-            background: #fdd !important;
-            border: 1px solid #FFB6C1 !important;
-        }
-
-        .gift-card.is-expiring .gift-expiration {
-            background: rgba(255, 255, 255, 0.2) !important;
-            border-left-color: #f43f5e !important;
-        }
-
-        .gift-card.is-expiring .badge {
-            background: #f43f5e;
-            opacity: 0.8;
-        }
 
         .sort-controls {
             margin: 0;
@@ -545,24 +579,13 @@
             font-size: 0.85em;
         }
 
-        .gift-actions {
-            display: none;
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px dashed #e0e0e0;
-        }
-
-        .gift-card.is-expanded .gift-actions {
-            display: flex;
-        }
-
         .toggle-actions-btn {
             background: none;
             border: 1px solid #D97706;
             color: #D97706;
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
+            width: 26px;
+            height: 26px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -584,7 +607,7 @@
         <div class="top-row">
             <header>
                 <div class="header-main">
-                    <h1>株主優待を管理するやーつ</h1>
+                    <h1>BenefitLog - 株主優待の管理</h1>
                     <div class="header-stats">
                         <div class="header-stat">
                             <div class="header-stat-value" id="totalGifts">0</div>
@@ -772,7 +795,6 @@
         function clearPanel() {
             document.querySelectorAll('.menu-tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
-            // 編集モード中はここから勝手にcloseEditFormを呼ばない（送信時のバグを防ぐため）
         }
 
         function switchPanel(panelName) {
@@ -898,7 +920,6 @@
 
         function openUsageForm(id) {
             currentEditingGiftId = id; const gift = gifts.find(g => g.id === id); if (!gift) return;
-            // 既存の編集モードがあれば閉じる
             if (isEditMode) closeEditForm();
             clearPanel(); document.getElementById('panel-record').classList.add('active');
             document.getElementById('usageGiftName').value = gift.companyName;
@@ -1003,7 +1024,9 @@
                         isExpiring = daysLeft <= 30 && daysLeft > 0;
                         isExpired = daysLeft <= 0;
                     }
-                    const per = (gift.currentBalance / gift.initialBalance) * 100;
+                    const per = gift.initialBalance > 0 ? (gift.currentBalance / gift.initialBalance) * 100 : 0;
+                    
+                    // 【修正】期限間近・期限切れの場合は「is-expiring」クラスを付与
                     const cardClass = (isExpiring || isExpired) ? 'gift-card is-expiring' : 'gift-card';
                     const badge = isExpired ? '<span class="badge">期限切れ</span>' : (isExpiring ? '<span class="badge">期限間近</span>' : '');
                     
