@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yutai-tracker-v1';
+const CACHE_NAME = 'BenefitLog-v1';
 const ASSETS = [
   'index.html',
   'manifest.json',
