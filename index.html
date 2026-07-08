@@ -11,7 +11,6 @@
     <link rel="apple-touch-icon" href="icon-192.png">
 
     <script>
-        // サービスワーカーの登録スクリプト
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js')
@@ -34,7 +33,6 @@
 
         body {
             font-family: 'Noto Sans JP', 'Inter', system-ui, -apple-system, sans-serif;
-            /* 【変更箇所】背景を明るい薄グレーにして、白いカードを引き立たせます */
             background: #d3d4d6; 
             color: #1a1a1a;
             line-height: 1.6;
@@ -47,7 +45,6 @@
             margin: 0 auto;
         }
 
-        /* 最上部のレイアウト */
         .top-row {
             display: flex;
             flex-direction: column;
@@ -55,7 +52,6 @@
             margin-bottom: 15px;
         }
 
-        /* オレンジのヘッダー枠 */
         header {
             background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
             color: white;
@@ -84,7 +80,6 @@
             white-space: nowrap;
         }
 
-        /* 統計情報エリア */
         .header-stats {
             display: flex;
             gap: 20px;
@@ -113,14 +108,12 @@
             white-space: nowrap;
         }
 
-        /* メニュータブ（右側のボタン群） */
         .menu-tabs {
             display: flex;
             gap: 12px;
             align-items: stretch;
         }
 
-        /* オレンジ色のボタンデザイン */
         .menu-tab-btn {
             flex: 1;
             background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
@@ -151,7 +144,6 @@
             border-color: rgba(255, 255, 255, 0.5);
         }
 
-        /* パソコン・タブレット向け */
         @media (min-width: 768px) {
             .top-row {
                 flex-direction: row;
@@ -171,7 +163,6 @@
             }
         }
 
-        /* 各入力エリアの表示制御 */
         .panel {
             display: none;
         }
@@ -199,7 +190,6 @@
             box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
         }
 
-        /* 入力フォームのカード：背景は白 */
         .card {
             background: #ffffff; 
             border-radius: 12px;
@@ -343,7 +333,6 @@
             margin-top: 12px;
         }
 
-        /* 通常の優待カード：背景は白ベース */
         .gift-card {
             background: #ffffff !important;
             border: 1px solid #cbd5e1 !important;
@@ -358,7 +347,6 @@
             box-shadow: 0 8px 24px rgba(217, 119, 6, 0.15);
         }
 
-        /* 【復活】期限間近・期限切れのカード：薄いピンク背景 */
         .gift-card.is-expiring {
             background: #eee5e5 !important;
             border: 1px solid #fca5a5 !important;
@@ -373,8 +361,8 @@
 
         .gift-title-wrap {
             display: flex;
-            align-items: baseline; /* 横並びで文字の底辺を揃える */
-            gap: 8px;              /* 銘柄名と種別の隙間 */
+            align-items: baseline;
+            gap: 8px;
             flex-wrap: wrap;
         }
 
@@ -462,7 +450,6 @@
             font-weight: 600;
         }
 
-        /* 操作ボタンエリア */
         .gift-actions {
             display: none; 
             gap: 6px;
@@ -495,6 +482,21 @@
         
         .gift-actions button:not(.button-secondary):not(.button-danger):hover {
             background: #B45309;
+        }
+
+        /* インライン展開用フォームのスタイル */
+        .inline-form-box {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+        }
+        .inline-form-box h4 {
+            font-size: 0.9em;
+            color: #D97706;
+            margin-bottom: 8px;
+            font-weight: 700;
         }
 
         .history-table {
@@ -626,15 +628,15 @@
             </header>
 
             <div class="menu-tabs">
-                <button class="menu-tab-btn" id="tab-add" onclick="switchPanel('add')">優待を追加</button>
+                <button class="menu-tab-btn" id="tab-add" onclick="switchPanel('add')">新規優待を追加</button>
                 <button class="menu-tab-btn" id="tab-manage" onclick="switchPanel('manage')">データ管理</button>
             </div>
         </div>
 
         <div class="panels-container">
             <div class="card panel" id="panel-add">
-                <h2>優待を追加</h2>
-                <form id="giftForm">
+                <h2>優待を新規登録</h2>
+                <form id="giftForm" onsubmit="handleGiftSubmit(event)">
                     <div class="form-row">
                         <div class="form-group">
                             <label for="companyName">銘柄名</label>
@@ -642,10 +644,9 @@
                         </div>
                         <div class="form-group">
                             <label for="giftType">優待種別</label>
-                            <select id="giftType" required onchange="handleGiftTypeChange()">
+                            <select id="giftType" required onchange="handleGiftTypeChange('initialBalanceLabel', 'giftType')">
                                 <option value="">選択してください</option>
                                 <option value="飲食券">飲食券</option>
-                                <option value="金券">金券</option>
                                 <option value="映画観賞券">映画観賞券</option>
                                 <option value="旅行券">旅行券</option>
                                 <option value="割引券・優待券">割引券・優待券（枚数管理）</option>
@@ -657,42 +658,13 @@
                         <label for="initialBalance" id="initialBalanceLabel">初期残高（円）</label>
                         <input type="number" id="initialBalance" min="1" required>
                     </div>
-                    <div class="form-group" id="expirationDateGroup">
+                    <div class="form-group">
                         <label for="expirationDate">有効期限</label>
                         <input type="date" id="expirationDate" required>
                     </div>
-                    <div class="button-group" id="giftFormButtonGroup">
-                        <button type="submit" class="submit-btn">優待を追加</button>
-                    </div>
-                </form>
-            </div>
-
-            <div class="card panel" id="panel-record">
-                <h2>使用を記録</h2>
-                <form id="usageForm">
-                    <div class="form-group">
-                        <label>銘柄名</label>
-                        <input type="text" id="usageGiftName" disabled style="background: #f0f0f0;">
-                    </div>
-                    <div class="form-group">
-                        <label>現在の残高</label>
-                        <input type="text" id="usageCurrentBalance" disabled style="background: #f0f0f0;">
-                    </div>
-                    <div class="form-group">
-                        <label for="usedAmount" id="usedAmountLabel">使用金額（円）</label>
-                        <input type="number" id="usedAmount" min="1" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="usedDate">使用日</label>
-                        <input type="date" id="usedDate" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="memo">メモ</label>
-                        <textarea id="memo" rows="3"></textarea>
-                    </div>
                     <div class="button-group">
-                        <button type="submit" class="submit-btn">使用を記録</button>
-                        <button type="button" class="button-secondary" onclick="closeUsageForm()">キャンセル</button>
+                        <button type="submit" class="submit-btn">優待を追加</button>
+                        <button type="button" class="button-secondary" onclick="clearPanel()">キャンセル</button>
                     </div>
                 </form>
             </div>
@@ -746,8 +718,6 @@
 
     <script>
         let gifts = JSON.parse(localStorage.getItem('gifts')) || [];
-        let currentEditingGiftId = null;
-        let isEditMode = false;
         let currentSort = localStorage.getItem('giftSort') || 'id-desc';
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -760,19 +730,27 @@
             renderGifts();
         }
 
-        function handleGiftTypeChange() {
-            const type = document.getElementById('giftType').value;
-            const label = document.getElementById('initialBalanceLabel');
-            if (type === '割引券・優待券') {
-                label.textContent = '初期枚数（枚）';
-            } else {
-                label.textContent = '初期残高（円）';
+        function handleGiftTypeChange(labelId, selectId) {
+            const type = document.getElementById(selectId).value;
+            const label = document.getElementById(labelId);
+            if (label) {
+                label.textContent = type === '割引券・優待券' ? '初期枚数（枚）' : '初期残高（円）';
             }
         }
 
         function toggleActions(btn, giftId) {
             const card = btn.closest('.gift-card');
+            
+            // 他の開いているインラインフォームがあれば閉じる
+            if (!card.classList.contains('is-expanded')) {
+                removeInlineForm();
+            }
             card.classList.toggle('is-expanded');
+        }
+
+        function removeInlineForm() {
+            const existingForm = document.querySelector('.inline-form-box');
+            if (existingForm) existingForm.remove();
         }
 
         function getStartOfDay(dateInput) {
@@ -789,151 +767,176 @@
             return `${yyyy}${mm}${dd}`;
         }
 
-        document.getElementById('giftForm').addEventListener('submit', handleGiftSubmit);
-        document.getElementById('usageForm').addEventListener('submit', recordUsage);
-        document.getElementById('usedDate').valueAsDate = new Date();
-
         function clearPanel() {
             document.querySelectorAll('.menu-tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
+            removeInlineForm();
         }
 
         function switchPanel(panelName) {
             const tabBtn = document.getElementById('tab-' + panelName);
             if (!tabBtn) return;
             if (tabBtn.classList.contains('active')) {
-                if (isEditMode && panelName === 'add') {
-                    closeEditForm();
-                }
                 clearPanel();
                 return;
-            }
-            if (isEditMode && panelName !== 'add') {
-                closeEditForm();
             }
             clearPanel();
             tabBtn.classList.add('active');
             document.getElementById('panel-' + panelName).classList.add('active');
             if (panelName === 'add') {
                 document.getElementById('companyName').focus();
-                handleGiftTypeChange();
             }
         }
 
+        // 新規登録処理
         function handleGiftSubmit(e) {
             e.preventDefault();
             const companyName = document.getElementById('companyName').value;
             const giftType = document.getElementById('giftType').value;
             const initialBalance = parseInt(document.getElementById('initialBalance').value, 10);
-            
             const dateVal = document.getElementById('expirationDate').value;
+            
             if (!dateVal) { showToast('有効期限を選択してください', 'error'); return; }
             const expirationDate = getStartOfDay(dateVal);
 
-            if (isEditMode && currentEditingGiftId) {
-                const gift = gifts.find(g => g.id === currentEditingGiftId);
-                if (gift) {
-                    gift.companyName = companyName;
-                    gift.giftType = giftType;
-                    gift.expirationDate = expirationDate.toISOString();
-                    const balanceDiff = initialBalance - gift.initialBalance;
-                    gift.initialBalance = initialBalance;
-                    gift.currentBalance = Math.max(0, gift.currentBalance + balanceDiff);
-                    saveGifts(); renderGifts(); closeEditForm(); showToast('優待を更新しました'); clearPanel();
-                }
-            } else {
-                const gift = {
-                    id: Date.now(), companyName, giftType, initialBalance,
-                    currentBalance: initialBalance, expirationDate: expirationDate.toISOString(),
-                    isArchived: false, usageHistory: []
-                };
-                gifts.push(gift); saveGifts(); renderGifts();
-                document.getElementById('giftForm').reset();
-                showToast('優待を追加しました'); clearPanel();
-            }
+            const gift = {
+                id: Date.now(), companyName, giftType, initialBalance,
+                currentBalance: initialBalance, expirationDate: expirationDate.toISOString(),
+                isArchived: false, usageHistory: []
+            };
+            gifts.push(gift); saveGifts(); renderGifts();
+            document.getElementById('giftForm').reset();
+            showToast('優待を追加しました'); clearPanel();
         }
 
-        function editGift(id) {
+        // ★ その場所に「使用フォーム」を展開する関数
+        function openUsageForm(id) {
+            removeInlineForm();
             const gift = gifts.find(g => g.id === id);
             if (!gift) return;
-            
-            currentEditingGiftId = id;
-            isEditMode = true; 
 
-            // パネル切り替え
-            document.querySelectorAll('.menu-tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
-            document.getElementById('tab-add').classList.add('active');
-            document.getElementById('panel-add').classList.add('active');
-            
-            // 値をセット
-            document.getElementById('companyName').value = gift.companyName;
-            document.getElementById('giftType').value = gift.giftType;
-            handleGiftTypeChange();
-            document.getElementById('initialBalance').value = gift.initialBalance;
-            if (gift.expirationDate) {
-                document.getElementById('expirationDate').value = gift.expirationDate.split('T')[0];
-            } else {
-                document.getElementById('expirationDate').value = '';
-            }
+            const card = document.getElementById(`gift-${id}`);
+            const isTicket = gift.giftType === '割引券・優待券';
+            const unit = isTicket ? '枚' : '円';
+            const todayStr = new Date().toISOString().split('T')[0];
 
-            document.querySelector('#panel-add h2').textContent = '優待を編集';
-            document.querySelector('#giftForm button[type="submit"]').textContent = '更新する';
-
-            let cancelButton = document.querySelector('#giftForm .cancel-button');
-            if (!cancelButton) {
-                cancelButton = document.createElement('button');
-                cancelButton.type = 'button';
-                cancelButton.className = 'button-secondary cancel-button';
-                cancelButton.textContent = 'キャンセル';
-                cancelButton.onclick = () => { closeEditForm(); clearPanel(); };
-                document.getElementById('giftFormButtonGroup').appendChild(cancelButton);
-            } else { cancelButton.style.display = 'block'; }
+            const formHtml = `
+                <div class="inline-form-box">
+                    <h4>使用を記録</h4>
+                    <form onsubmit="recordInlineUsage(event, ${id})">
+                        <div class="form-group" style="margin-bottom:10px;">
+                            <label style="font-size:0.85em;">使用${isTicket ? '枚数（枚）' : '金額（円）'}</label>
+                            <input type="number" id="inlineUsedAmount" min="1" max="${gift.currentBalance}" required style="padding:8px 12px; font-size:0.9em;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:10px;">
+                            <label style="font-size:0.85em;">使用日</label>
+                            <input type="date" id="inlineUsedDate" value="${todayStr}" required style="padding:8px 12px; font-size:0.9em;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:10px;">
+                            <label style="font-size:0.85em;">メモ</label>
+                            <textarea id="inlineMemo" rows="2" style="padding:8px 12px; font-size:0.9em;"></textarea>
+                        </div>
+                        <div class="button-group" style="margin-top:10px;">
+                            <button type="submit" class="submit-btn" style="padding:8px; font-size:0.9em;">記録する</button>
+                            <button type="button" class="button-secondary" onclick="removeInlineForm()" style="padding:8px; font-size:0.9em;">閉じる</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            card.insertAdjacentHTML('beforeend', formHtml);
+            document.getElementById('inlineUsedAmount').focus();
         }
 
-        function closeEditForm() {
-            isEditMode = false; currentEditingGiftId = null;
-            document.getElementById('giftForm').reset();
-            document.querySelector('#panel-add h2').textContent = '優待を追加';
-            document.querySelector('#giftForm button[type="submit"]').textContent = '優待を追加';
-            const cancelButton = document.querySelector('#giftForm .cancel-button');
-            if (cancelButton) cancelButton.style.display = 'none';
-        }
-
-        function recordUsage(e) {
+        function recordInlineUsage(e, id) {
             e.preventDefault();
-            const usedAmount = parseInt(document.getElementById('usedAmount').value, 10);
-            const usedDate = new Date(document.getElementById('usedDate').value);
-            const memo = document.getElementById('memo').value;
-            const gift = gifts.find(g => g.id === currentEditingGiftId);
+            const gift = gifts.find(g => g.id === id);
             if (!gift) return;
 
-            if (usedAmount > gift.currentBalance) { 
-                const unit = gift.giftType === '割引券・優待券' ? '枚数' : '金額';
-                showToast(`使用${unit}が残高を超えています`, 'error'); 
-                return; 
+            const usedAmount = parseInt(document.getElementById('inlineUsedAmount').value, 10);
+            const usedDate = new Date(document.getElementById('inlineUsedDate').value);
+            const memo = document.getElementById('inlineMemo').value;
+
+            if (usedAmount > gift.currentBalance) {
+                showToast('残高を超えています', 'error');
+                return;
             }
+
             gift.usageHistory.push({ id: Date.now(), usedAmount, usedDate: usedDate.toISOString(), memo });
             gift.currentBalance -= usedAmount;
             if (gift.currentBalance <= 0) gift.isArchived = true;
-            saveGifts(); renderGifts(); closeUsageForm(); showToast('使用を記録しました');
+
+            saveGifts(); renderGifts(); showToast('使用を記録しました');
         }
 
-        function openUsageForm(id) {
-            currentEditingGiftId = id; const gift = gifts.find(g => g.id === id); if (!gift) return;
-            if (isEditMode) closeEditForm();
-            clearPanel(); document.getElementById('panel-record').classList.add('active');
-            document.getElementById('usageGiftName').value = gift.companyName;
-            
-            const isTicket = gift.giftType === '割引券・優待券';
-            const unit = isTicket ? '枚' : '円';
-            document.getElementById('usageCurrentBalance').value = gift.currentBalance.toLocaleString() + unit;
-            document.getElementById('usedAmountLabel').textContent = isTicket ? '使用枚数（枚）' : '使用金額（円）';
-            
-            document.getElementById('usedAmount').value = ''; document.getElementById('memo').value = '';
+        // ★ その場所に「編集フォーム」を展開する関数
+        function editGift(id) {
+            removeInlineForm();
+            const gift = gifts.find(g => g.id === id);
+            if (!gift) return;
+
+            const card = document.getElementById(`gift-${id}`);
+            const dateStr = gift.expirationDate ? gift.expirationDate.split('T')[0] : '';
+
+            const formHtml = `
+                <div class="inline-form-box">
+                    <h4>優待を編集</h4>
+                    <form onsubmit="saveInlineEdit(event, ${id})">
+                        <div class="form-group" style="margin-bottom:10px;">
+                            <label style="font-size:0.85em;">銘柄名</label>
+                            <input type="text" id="inlineCompanyName" value="${gift.companyName}" required style="padding:8px 12px; font-size:0.9em;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:10px;">
+                            <label style="font-size:0.85em;">優待種別</label>
+                            <select id="inlineGiftType" required onchange="handleGiftTypeChange('inlineBalanceLabel', 'inlineGiftType')" style="padding:8px 12px; font-size:0.9em;">
+                                <option value="飲食券" ${gift.giftType === '飲食券' ? 'selected' : ''}>飲食券</option>
+                                <option value="映画観賞券" ${gift.giftType === '映画観賞券' ? 'selected' : ''}>映画観賞券</option>
+                                <option value="旅行券" ${gift.giftType === '旅行券' ? 'selected' : ''}>旅行券</option>
+                                <option value="割引券・優待券" ${gift.giftType === '割引券・優待券' ? 'selected' : ''}>割引券・優待券（枚数管理）</option>
+                                <option value="その他" ${gift.giftType === 'その他' ? 'selected' : ''}>その他</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:10px;">
+                            <label id="inlineBalanceLabel" style="font-size:0.85em;">${gift.giftType === '割引券・優待券' ? '初期枚数（枚）' : '初期残高（円）'}</label>
+                            <input type="number" id="inlineInitialBalance" value="${gift.initialBalance}" min="1" required style="padding:8px 12px; font-size:0.9em;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:10px;">
+                            <label style="font-size:0.85em;">有効期限</label>
+                            <input type="date" id="inlineExpirationDate" value="${dateStr}" required style="padding:8px 12px; font-size:0.9em;">
+                        </div>
+                        <div class="button-group" style="margin-top:10px;">
+                            <button type="submit" class="submit-btn" style="padding:8px; font-size:0.9em;">更新する</button>
+                            <button type="button" class="button-secondary" onclick="removeInlineForm()" style="padding:8px; font-size:0.9em;">キャンセル</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            card.insertAdjacentHTML('beforeend', formHtml);
+            document.getElementById('inlineCompanyName').focus();
         }
 
-        function closeUsageForm() { currentEditingGiftId = null; clearPanel(); }
+        function saveInlineEdit(e, id) {
+            e.preventDefault();
+            const gift = gifts.find(g => g.id === id);
+            if (!gift) return;
+
+            const companyName = document.getElementById('inlineCompanyName').value;
+            const giftType = document.getElementById('inlineGiftType').value;
+            const initialBalance = parseInt(document.getElementById('inlineInitialBalance').value, 10);
+            const dateVal = document.getElementById('inlineExpirationDate').value;
+
+            if (!dateVal) { showToast('有効期限を選択してください', 'error'); return; }
+            const expirationDate = getStartOfDay(dateVal);
+
+            gift.companyName = companyName;
+            gift.giftType = giftType;
+            gift.expirationDate = expirationDate.toISOString();
+            
+            const balanceDiff = initialBalance - gift.initialBalance;
+            gift.initialBalance = initialBalance;
+            gift.currentBalance = Math.max(0, gift.currentBalance + balanceDiff);
+
+            saveGifts(); renderGifts(); showToast('優待を更新しました');
+        }
 
         function openHistoryModal(id) {
             const gift = gifts.find(g => g.id === id); if (!gift) return;
@@ -1027,7 +1030,6 @@
                     }
                     const per = gift.initialBalance > 0 ? (gift.currentBalance / gift.initialBalance) * 100 : 0;
                     
-                    // 【修正】期限間近・期限切れの場合は「is-expiring」クラスを付与
                     const cardClass = (isExpiring || isExpired) ? 'gift-card is-expiring' : 'gift-card';
                     const badge = isExpired ? '<span class="badge">期限切れ</span>' : (isExpiring ? '<span class="badge">期限間近</span>' : '');
                     
