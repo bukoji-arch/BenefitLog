@@ -1,612 +1,141 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-    
+    <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#D97706">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BenefitLog 株主優待の管理</title>
 
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="BenefitLog">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <!-- Firebase (Firestore) を読み込むためのスクリプト -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <script>
+        // ==========================================================
+        // 【設定1】Firebaseを使用するかどうかのフラグ
+        //  true  : Firebase（Firestore）と同期してデータ管理
+        //  false : ブラウザの LocalStorage のみでデータ管理（完全ローカル）
+        // ==========================================================
+        const USE_FIREBASE = false; 
+
+        // ==========================================================
+        // 【設定2】通知のしきい値（有効期限があと何日以下になったら通知するか）
+        // ==========================================================
+        const ALERT_THRESHOLD_DAYS = 30; 
+
+        // 【設定3】あなた専用のFirebase設定に書き換えてください（USE_FIREBASEがtrueの時のみ使用）
+        const firebaseConfig = {
+	    apiKey: "",
+	    authDomain: "",
+	    projectId: "",
+	    storageBucket: "",
+	    messagingSenderId: "",
+	    appId: ""
+        };
+        
+        // Firebaseの初期化（エラーハンドリング付き）
+        let db = null;
+        if (USE_FIREBASE) {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+            } catch (e) {
+                console.error("Firebase初期化失敗。設定を確認してください。:", e);
+            }
+        }
+
+        // サービスワーカー
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js')
-                    .then(reg => {
-                        console.log('Service Worker 登録成功', reg);
-                        reg.update();
-                    })
-                    .catch(err => console.error('Service Worker 登録失敗', err));
+                    .then(reg => { reg.update(); })
+                    .catch(err => console.error(err));
             });
         }
     </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BenefitLog 株主優待の管理</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Noto Sans JP', 'Inter', system-ui, -apple-system, sans-serif;
-            background: #d3d4d6; 
-            color: #1a1a1a;
-            line-height: 1.6;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .top-row {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-bottom: 15px;
-        }
-
-        header {
-            background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
-            color: white;
-            padding: 15px 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.15);
-            flex: 1;
-            display: flex;
-            align-items: center;
-        }
-
-        .header-main {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            width: 100%;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        header h1 {
-            font-size: 1.3em;
-            margin: 0;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            white-space: nowrap;
-        }
-
-        .header-stats {
-            display: flex;
-            gap: 20px;
-            align-items: center;
-        }
-
-        .header-stat {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-        }
-
-        .header-stat-value {
-            font-size: 1.3em;
-            font-weight: 700;
-            color: #ffffff;
-            white-space: nowrap;
-            line-height: 1.2;
-        }
-
-        .header-stat-label {
-            font-size: 0.75em;
-            color: rgba(255, 255, 255, 0.9);
-            margin-top: 4px;
-            white-space: nowrap;
-        }
-
-        .menu-tabs {
-            display: flex;
-            gap: 12px;
-            align-items: stretch;
-        }
-
-        .menu-tab-btn {
-            flex: 1;
-            background: linear-gradient(135deg, #D97706 0%, #B45309 100%);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            padding: 14px 24px;
-            border-radius: 12px;
-            font-size: 1.1em;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            white-space: nowrap;
-            text-align: center;
-            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .menu-tab-btn:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
-        }
-
-        .menu-tab-btn.active {
-            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.3), 0 4px 12px rgba(217, 119, 6, 0.3);
-            border-color: rgba(255, 255, 255, 0.5);
-        }
-
-        @media (min-width: 768px) {
-            .top-row {
-                flex-direction: row;
-                align-items: stretch;
-            }
-            header {
-                padding: 0 25px;
-            }
-            .menu-tabs {
-                flex-direction: row;
-                flex: 0 0 auto;
-            }
-            .menu-tab-btn {
-                flex: none;
-                min-width: 140px;
-                height: 100%;
-            }
-        }
-
-        .panel {
-            display: none;
-        }
-
-        .panel.active {
-            display: block;
-        }
-
-        select {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 1em;
-            transition: all 0.2s ease;
-            background: #f9f9f9;
-            cursor: pointer;
-        }
-
-        select:focus {
-            outline: none;
-            border-color: #D97706;
-            background: white;
-            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
-        }
-
-        .card {
-            background: #ffffff; 
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            border: 1px solid rgba(217, 119, 6, 0.1);
-            margin-bottom: 20px;
-        }
-
-        .card:last-child {
-            margin-bottom: 0;
-        }
-
-        .card h2 {
-            color: #D97706;
-            font-size: 1.4em;
-            margin-bottom: 20px;
-            padding-bottom: 12px;
-            border-bottom: 2px solid #D97706;
-        }
-
-        .form-group {
-            margin-bottom: 18px;
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        @media (max-width: 480px) {
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        label {
-            display: flex;
-            align-items: center;
-            color: #333;
-            font-weight: 600;
-            margin-bottom: 8px;
-            font-size: 0.95em;
-        }
-
-        input[type="text"], input[type="number"], input[type="date"], textarea {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 1em;
-            transition: all 0.2s ease;
-            background: #f9f9f9;
-        }
-
-        input[type="text"]:focus, input[type="number"]:focus, input[type="date"]:focus, textarea:focus {
-            outline: none;
-            border-color: #D97706;
-            background: white;
-            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
-        }
-
-        button.submit-btn {
-            background: linear-gradient(135deg, #D97706 0%, #F59E0B 100%);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 1em;
-            font-weight: 600;
-            cursor: pointer;
-            width: 100%;
-            transition: all 0.16s ease;
-        }
-
-        button.submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(217, 119, 6, 0.3);
-        }
-
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .button-secondary {
-            background: #f9f9f9;
-            color: #333;
-            border: 2px solid #D97706;
-            padding: 10px 15px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-
-        .button-secondary:hover {
-            background: #fffbeb;
-        }
-
-        .button-danger {
-            background: #ef4444;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Noto Sans JP', sans-serif; background: #d3d4d6; color: #1a1a1a; line-height: 1.6; min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .top-row { display: flex; flex-direction: column; gap: 12px; margin-bottom: 15px; }
+        header { background: linear-gradient(135deg, #D97706 0%, #B45309 100%); color: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.15); flex: 1; display: flex; align-items: center; }
+        .header-main { display: flex; align-items: center; justify-content: space-between; width: 100%; flex-wrap: wrap; gap: 15px; }
+        header h1 { font-size: 1.3em; margin: 0; font-weight: 700; white-space: nowrap; }
+        .header-stats { display: flex; gap: 20px; align-items: center; }
+        .header-stat { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .header-stat-value { font-size: 1.3em; font-weight: 700; color: #ffffff; white-space: nowrap; line-height: 1.2; }
+        .header-stat-label { font-size: 0.75em; color: rgba(255, 255, 255, 0.9); margin-top: 4px; white-space: nowrap; }
+        .menu-tabs { display: flex; gap: 12px; align-items: stretch; }
+        .menu-tab-btn { flex: 1; background: linear-gradient(135deg, #D97706 0%, #B45309 100%); color: white; border: 1px solid rgba(255, 255, 255, 0.3); padding: 14px 24px; border-radius: 12px; font-size: 1.1em; font-weight: 700; cursor: pointer; transition: all 0.2s ease; text-align: center; display: flex; align-items: center; justify-content: center; }
+        .menu-tab-btn.active { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); }
+        @media (min-width: 768px) { .top-row { flex-direction: row; align-items: stretch; } header { padding: 0 25px; } .menu-tabs { flex-direction: row; flex: 0 0 auto; } .menu-tab-btn { flex: none; min-width: 140px; height: 100%; } }
         
-        .button-danger:hover {
-            background: #dc2626;
-        }
+        /* 期限切れ・期限間近アラートエリアのスタイル */
+        .alert-area { display: none; background: #fee2e2; border: 2px solid #ef4444; color: #991b1b; padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.05); }
+        .alert-area.active { display: block; }
+        .alert-title { font-weight: bold; font-size: 1.05em; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .alert-list { list-style-type: none; padding-left: 5px; font-size: 0.9em; }
+        .alert-item { margin-bottom: 4px; display: flex; justify-content: space-between; border-bottom: 1px dotted #fca5a5; padding-bottom: 4px; }
+        .alert-close-btn { background: none; border: none; color: #991b1b; font-weight: bold; cursor: pointer; float: right; font-size: 1.2em; margin-top: -4px; }
 
-        .management-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-
-        .file-input-wrapper {
-            position: relative;
-            overflow: hidden;
-            display: inline-block;
-        }
-
-        .file-input-wrapper input[type="file"] {
-            font-size: 100px;
-            position: absolute;
-            left: 0;
-            top: 0;
-            opacity: 0;
-            cursor: pointer;
-        }
-
-        .gifts-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 12px;
-            margin-top: 12px;
-        }
-
-        .gift-card {
-            background: #ffffff !important;
-            border: 1px solid #cbd5e1 !important;
-            border-radius: 8px;
-            padding: 12px;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
-        }
-
-        .gift-card:hover {
-            border-color: #D97706 !important;
-            box-shadow: 0 8px 24px rgba(217, 119, 6, 0.15);
-        }
-
-        .gift-card.is-expiring {
-            background: #eee5e5 !important;
-            border: 1px solid #fca5a5 !important;
-        }
-
-        .gift-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        .gift-title-wrap {
-            display: flex;
-            align-items: baseline;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .gift-title {
-            font-size: 1em;
-            font-weight: 700;
-            line-height: 1.2;
-            color: #1a1a1a;
-        }
-
-        .gift-type {
-            font-size: 0.75em;
-            color: #666;
-        }
-
-        .badge {
-            background: #ef4444;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.75em;
-            font-weight: bold;
-            white-space: nowrap;
-        }
-
-        .gift-balance {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 8px;
-        }
-
-        .balance-info {
-            display: flex;
-            flex-direction: column;
-            min-width: 70px;
-        }
-
-        .balance-label {
-            font-size: 0.75em;
-            color: #666;
-            margin-bottom: 2px;
-        }
-
-        .balance-amount {
-            font-size: 1.1em;
-            font-weight: 700;
-            color: #D97706;
-        }
-
-        .progress-container {
-            flex: 1;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 6px;
-            background: #e5e7eb;
-            border-radius: 3px;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #D97706 0%, #F59E0B 100%);
-        }
-
-        .gift-expiration {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 8px;
-            background: rgba(0, 0, 0, 0.03) !important;
-            border-radius: 4px;
-            border-left: 3px solid #D97706;
-            margin-bottom: 4px;
-        }
-
-        .gift-card.is-expiring .gift-expiration {
-            background: rgba(239, 68, 68, 0.05) !important;
-            border-left-color: #ef4444 !important;
-        }
-
-        .expiration-date, .expiration-days {
-            font-size: 0.8em;
-            font-weight: 600;
-        }
-
-        .gift-actions {
-            display: none; 
-            gap: 6px;
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px dashed #e2e8f0;
-        }
-
-        .gift-card.is-expanded .gift-actions {
-            display: flex;
-            flex-wrap: wrap;
-        }
-
-        .gift-actions button {
-            flex: 1;
-            min-width: 60px;
-            padding: 6px;
-            font-size: 0.8em;
-            font-weight: 600;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .gift-actions button:not(.button-secondary):not(.button-danger) {
-            background: #D97706;
-            color: white;
-            border: none;
-        }
-        
-        .gift-actions button:not(.button-secondary):not(.button-danger):hover {
-            background: #B45309;
-        }
-
-        /* インライン展開用フォームのスタイル */
-        .inline-form-box {
-            margin-top: 12px;
-            padding: 12px;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-        }
-        .inline-form-box h4 {
-            font-size: 0.9em;
-            color: #D97706;
-            margin-bottom: 8px;
-            font-weight: 700;
-        }
-
-        .history-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-
-        .history-table th, .history-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
-        }
-
-        .history-table th {
-            border-bottom: 2px solid #D97706;
-            color: #D97706;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            max-width: 500px;
-            width: 100%;
-            position: relative;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .modal-close {
-            position: absolute;
-            top: 15px; right: 15px;
-            background: none; border: none; font-size: 1.5em; cursor: pointer;
-            color: #666;
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 20px; right: 20px;
-            background: #10b981;
-            color: white;
-            padding: 15px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            z-index: 2000;
-        }
-
+        .panel { display: none; }
+        .panel.active { display: block; }
+        select, input[type="text"], input[type="number"], input[type="date"], textarea { width: 100%; padding: 12px 15px; border: 2px solid #e0e0e0; border-radius: 8px; font-family: inherit; font-size: 1em; background: #f9f9f9; }
+        select:focus, input[type="text"]:focus, input[type="number"]:focus, input[type="date"]:focus, textarea:focus { outline: none; border-color: #D97706; background: white; }
+        .card { background: #ffffff; border-radius: 12px; padding: 30px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); border: 1px solid rgba(217, 119, 6, 0.1); margin-bottom: 20px; }
+        .card h2 { color: #D97706; font-size: 1.4em; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #D97706; }
+        .form-group { margin-bottom: 18px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        @media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+        label { display: flex; align-items: center; color: #333; font-weight: 600; margin-bottom: 8px; font-size: 0.95em; }
+        button.submit-btn { background: linear-gradient(135deg, #D97706 0%, #F59E0B 100%); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.16s ease; }
+        .button-group { display: flex; gap: 10px; margin-top: 15px; }
+        .button-secondary { background: #f9f9f9; color: #333; border: 2px solid #D97706; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .button-danger { background: #ef4444; color: white; border: none; cursor: pointer; font-weight: 600; border-radius: 6px; }
+        .management-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .file-input-wrapper { position: relative; overflow: hidden; display: inline-block; }
+        .file-input-wrapper input[type="file"] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; }
+        .gifts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; margin-top: 12px; }
+        .gift-card { background: #ffffff !important; border: 1px solid #cbd5e1 !important; border-radius: 8px; padding: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
+        .gift-card.is-expiring { background: #eee5e5 !important; border: 1px solid #fca5a5 !important; }
+        .gift-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .gift-title-wrap { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .gift-title { font-size: 1em; font-weight: 700; color: #1a1a1a; }
+        .gift-type { font-size: 0.75em; color: #666; }
+        .badge { background: #ef4444; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75em; font-weight: bold; }
+        .gift-balance { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+        .balance-info { display: flex; flex-direction: column; min-width: 70px; }
+        .balance-label { font-size: 0.75em; color: #666; }
+        .balance-amount { font-size: 1.1em; font-weight: 700; color: #D97706; }
+        .progress-container { flex: 1; }
+        .progress-bar { width: 100%; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #D97706 0%, #F59E0B 100%); }
+        .gift-expiration { display: flex; justify-content: space-between; padding: 4px 8px; background: rgba(0, 0, 0, 0.03) !important; border-radius: 4px; border-left: 3px solid #D97706; margin-bottom: 4px; }
+        .gift-actions { display: none; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0; }
+        .gift-card.is-expanded .gift-actions { display: flex; flex-wrap: wrap; }
+        .gift-actions button { flex: 1; min-width: 60px; padding: 6px; font-size: 0.8em; font-weight: 600; border-radius: 6px; cursor: pointer; }
+        .gift-actions button:not(.button-secondary):not(.button-danger) { background: #D97706; color: white; border: none; }
+        .inline-form-box { margin-top: 12px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+        .inline-form-box h4 { font-size: 0.9em; color: #D97706; margin-bottom: 8px; font-weight: 700; }
+        .history-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        .history-table th, .history-table td { padding: 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+        .history-table th { border-bottom: 2px solid #D97706; color: #D97706; }
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 12px; padding: 25px; max-width: 500px; width: 100%; position: relative; max-height: 90vh; overflow-y: auto; }
+        .modal-close { position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 1.5em; cursor: pointer; color: #666; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #10b981; color: white; padding: 15px 20px; border-radius: 8px; z-index: 2000; }
         .toast.error { background: #ef4444; }
-
-        .sort-controls {
-            margin: 0;
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .sort-controls label {
-            margin-bottom: 0;
-            font-size: 0.85em;
-        }
-
-        .sort-controls select {
-            width: auto;
-            padding: 4px 8px;
-            font-size: 0.85em;
-        }
-
-        .toggle-actions-btn {
-            background: none;
-            border: 1px solid #D97706;
-            color: #D97706;
-            border-radius: 50%;
-            width: 26px;
-            height: 26px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: bold;
-            transition: all 0.2s ease;
-        }
-
-        .gift-card.is-expanded .toggle-actions-btn {
-            background: #D97706;
-            color: white;
-            transform: rotate(45deg);
-        }
+        .sort-controls { margin: 0; display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+        .sort-controls label { margin-bottom: 0; font-size: 0.85em; }
+        .sort-controls select { width: auto; padding: 4px 8px; font-size: 0.85em; }
+        .toggle-actions-btn { background: none; border: 1px solid #D97706; color: #D97706; border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; font-weight: bold; }
+        .gift-card.is-expanded .toggle-actions-btn { background: #D97706; color: white; transform: rotate(45deg); }
     </style>
 </head>
 <body>
@@ -631,11 +160,17 @@
                     </div>
                 </div>
             </header>
-
             <div class="menu-tabs">
                 <button class="menu-tab-btn" id="tab-add" onclick="switchPanel('add')">新規優待を追加</button>
                 <button class="menu-tab-btn" id="tab-manage" onclick="switchPanel('manage')">データ管理</button>
             </div>
+        </div>
+
+        <!-- 期限通知アラートエリア -->
+        <div id="alertArea" class="alert-area">
+            <button class="alert-close-btn" onclick="closeAlertArea()">×</button>
+            <div class="alert-title">期限が迫っている、または切れている優待があります</div>
+            <ul id="alertList" class="alert-list"></ul>
         </div>
 
         <div class="panels-container">
@@ -722,12 +257,101 @@
     </div>
 
     <script>
-        let gifts = JSON.parse(localStorage.getItem('gifts')) || [];
+        let gifts = [];
         let currentSort = localStorage.getItem('giftSort') || 'id-desc';
+        let firebaseUnsubscribe = null;
 
         window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('sortSelect').value = currentSort;
+            
+            // 設定フラグに基づいてデータストリームの初期化
+            initDataStream();
         });
+
+        // データの読み込みソースを設定フラグ（USE_FIREBASE）に従って初期化する主要処理
+        function initDataStream() {
+            if (firebaseUnsubscribe) {
+                firebaseUnsubscribe();
+                firebaseUnsubscribe = null;
+            }
+
+            if (USE_FIREBASE && db) {
+                // Firebaseからリアルタイム監視
+                firebaseUnsubscribe = db.collection("gifts").onSnapshot((snapshot) => {
+                    gifts = [];
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        data.id = doc.id;
+                        data.usageHistory = data.usageHistory || [];
+                        gifts.push(data);
+                    });
+                    renderGifts();
+                    checkExpirationAlerts(); // 期限通知のチェック
+                }, (error) => {
+                    console.error("Firestore監視エラー:", error);
+                    showToast("Firebaseデータの読み込みに失敗しました", "error");
+                });
+            } else {
+                // LocalStorageから読み込み
+                loadGiftsFromLocalStorage();
+                checkExpirationAlerts(); // 期限通知のチェック
+            }
+        }
+
+        // 期限が近い、または切れている優待をチェックして警告エリアに表示する関数
+        function checkExpirationAlerts() {
+            const activeGifts = gifts.filter(g => !g.isArchived);
+            const alertList = document.getElementById('alertList');
+            const alertArea = document.getElementById('alertArea');
+            
+            alertList.innerHTML = ''; // 一旦クリア
+            let hasAlert = false;
+
+            activeGifts.forEach(gift => {
+                if (!gift.expirationDate) return;
+
+                const diff = getStartOfDay(gift.expirationDate) - getStartOfDay(new Date());
+                const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+
+                if (daysLeft <= 0) {
+                    // 期限切れ
+                    hasAlert = true;
+                    const li = document.createElement('li');
+                    li.className = 'alert-item';
+                    li.innerHTML = `<span><strong>[期限切れ]</strong> ${escapeHtml(gift.companyName)}</span> <span>(${new Date(gift.expirationDate).toLocaleDateString('ja-JP')}に切れました)</span>`;
+                    alertList.appendChild(li);
+                } else if (daysLeft <= ALERT_THRESHOLD_DAYS) {
+                    // 期限間近（しきい値以下）
+                    hasAlert = true;
+                    const li = document.createElement('li');
+                    li.className = 'alert-item';
+                    li.innerHTML = `<span><strong>[残り${daysLeft}日]</strong> ${escapeHtml(gift.companyName)}</span> <span>(期限: ${new Date(gift.expirationDate).toLocaleDateString('ja-JP')})</span>`;
+                    alertList.appendChild(li);
+                }
+            });
+
+            if (hasAlert) {
+                alertArea.classList.add('active');
+            } else {
+                alertArea.classList.remove('active');
+            }
+        }
+
+        function closeAlertArea() {
+            document.getElementById('alertArea').classList.remove('active');
+        }
+
+        function loadGiftsFromLocalStorage() {
+            const localData = localStorage.getItem('localGifts');
+            gifts = localData ? JSON.parse(localData) : [];
+            renderGifts();
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('localGifts', JSON.stringify(gifts));
+            renderGifts();
+            checkExpirationAlerts(); // 保存時に再チェック
+        }
 
         function handleSortChange() {
             currentSort = document.getElementById('sortSelect').value;
@@ -738,18 +362,12 @@
         function handleGiftTypeChange(labelId, selectId) {
             const type = document.getElementById(selectId).value;
             const label = document.getElementById(labelId);
-            if (label) {
-                label.textContent = type === '割引券・優待券' ? '初期枚数（枚）' : '初期残高（円）';
-            }
+            if (label) label.textContent = type === '割引券・優待券' ? '初期枚数（枚）' : '初期残高（円）';
         }
 
         function toggleActions(btn, giftId) {
             const card = btn.closest('.gift-card');
-            
-            // 他の開いているインラインフォームがあれば閉じる
-            if (!card.classList.contains('is-expanded')) {
-                removeInlineForm();
-            }
+            if (!card.classList.contains('is-expanded')) removeInlineForm();
             card.classList.toggle('is-expanded');
         }
 
@@ -766,10 +384,7 @@
 
         function getFormattedDate() {
             const today = new Date();
-            const yyyy = today.getFullYear();
-            const mm = String(today.getMonth() + 1).padStart(2, '0');
-            const dd = String(today.getDate()).padStart(2, '0');
-            return `${yyyy}${mm}${dd}`;
+            return `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
         }
 
         function clearPanel() {
@@ -780,20 +395,14 @@
 
         function switchPanel(panelName) {
             const tabBtn = document.getElementById('tab-' + panelName);
-            if (!tabBtn) return;
-            if (tabBtn.classList.contains('active')) {
-                clearPanel();
-                return;
-            }
+            if (!tabBtn || tabBtn.classList.contains('active')) { clearPanel(); return; }
             clearPanel();
             tabBtn.classList.add('active');
             document.getElementById('panel-' + panelName).classList.add('active');
-            if (panelName === 'add') {
-                document.getElementById('companyName').focus();
-            }
+            if (panelName === 'add') document.getElementById('companyName').focus();
         }
 
-        // 新規登録処理
+        // データ追加
         function handleGiftSubmit(e) {
             e.preventDefault();
             const companyName = document.getElementById('companyName').value;
@@ -805,16 +414,30 @@
             const expirationDate = getStartOfDay(dateVal);
 
             const gift = {
-                id: Date.now(), companyName, giftType, initialBalance,
+                createdAt: Date.now(), companyName, giftType, initialBalance,
                 currentBalance: initialBalance, expirationDate: expirationDate.toISOString(),
                 isArchived: false, usageHistory: []
             };
-            gifts.push(gift); saveGifts(); renderGifts();
-            document.getElementById('giftForm').reset();
-            showToast('優待を追加しました'); clearPanel();
+
+            if (USE_FIREBASE && db) {
+                db.collection("gifts").add(gift)
+                    .then(() => {
+                        document.getElementById('giftForm').reset();
+                        showToast('優待を追加しました'); clearPanel();
+                    })
+                    .catch(err => {
+                        console.error("登録エラー:", err);
+                        showToast('登録中にエラーが発生しました', 'error');
+                    });
+            } else {
+                gift.id = 'local_' + Date.now();
+                gifts.push(gift);
+                saveToLocalStorage();
+                document.getElementById('giftForm').reset();
+                showToast('優待をローカルに追加しました'); clearPanel();
+            }
         }
 
-        // ★ その場所に「使用フォーム」を展開する関数
         function openUsageForm(id) {
             removeInlineForm();
             const gift = gifts.find(g => g.id === id);
@@ -822,13 +445,12 @@
 
             const card = document.getElementById(`gift-${id}`);
             const isTicket = gift.giftType === '割引券・優待券';
-            const unit = isTicket ? '枚' : '円';
             const todayStr = new Date().toISOString().split('T')[0];
 
             const formHtml = `
                 <div class="inline-form-box">
                     <h4>使用を記録</h4>
-                    <form onsubmit="recordInlineUsage(event, ${id})">
+                    <form onsubmit="recordInlineUsage(event, '${id}')">
                         <div class="form-group" style="margin-bottom:10px;">
                             <label style="font-size:0.85em;">使用${isTicket ? '枚数（枚）' : '金額（円）'}</label>
                             <input type="number" id="inlineUsedAmount" min="1" max="${gift.currentBalance}" required style="padding:8px 12px; font-size:0.9em;">
@@ -852,6 +474,7 @@
             document.getElementById('inlineUsedAmount').focus();
         }
 
+        // 使用記録の保存
         function recordInlineUsage(e, id) {
             e.preventDefault();
             const gift = gifts.find(g => g.id === id);
@@ -861,19 +484,29 @@
             const usedDate = new Date(document.getElementById('inlineUsedDate').value);
             const memo = document.getElementById('inlineMemo').value;
 
-            if (usedAmount > gift.currentBalance) {
-                showToast('残高を超えています', 'error');
-                return;
+            if (usedAmount > gift.currentBalance) { showToast('残高を超えています', 'error'); return; }
+
+            const historyList = gift.usageHistory || [];
+            const newHistory = [...historyList, { id: Date.now(), usedAmount, usedDate: usedDate.toISOString(), memo }];
+            const newBalance = gift.currentBalance - usedAmount;
+            const isArchived = newBalance <= 0;
+
+            if (USE_FIREBASE && db) {
+                db.collection("gifts").doc(id).update({
+                    usageHistory: newHistory,
+                    currentBalance: newBalance,
+                    isArchived: isArchived
+                }).then(() => { showToast('使用を記録しました'); removeInlineForm(); })
+                  .catch(err => { console.error("記録エラー:", err); showToast('記録に失敗しました', 'error'); });
+            } else {
+                gift.usageHistory = newHistory;
+                gift.currentBalance = newBalance;
+                gift.isArchived = isArchived;
+                saveToLocalStorage();
+                showToast('使用を記録しました'); removeInlineForm();
             }
-
-            gift.usageHistory.push({ id: Date.now(), usedAmount, usedDate: usedDate.toISOString(), memo });
-            gift.currentBalance -= usedAmount;
-            if (gift.currentBalance <= 0) gift.isArchived = true;
-
-            saveGifts(); renderGifts(); showToast('使用を記録しました');
         }
 
-        // ★ その場所に「編集フォーム」を展開する関数
         function editGift(id) {
             removeInlineForm();
             const gift = gifts.find(g => g.id === id);
@@ -885,7 +518,7 @@
             const formHtml = `
                 <div class="inline-form-box">
                     <h4>優待を編集</h4>
-                    <form onsubmit="saveInlineEdit(event, ${id})">
+                    <form onsubmit="saveInlineEdit(event, '${id}')">
                         <div class="form-group" style="margin-bottom:10px;">
                             <label style="font-size:0.85em;">銘柄名</label>
                             <input type="text" id="inlineCompanyName" value="${gift.companyName}" required style="padding:8px 12px; font-size:0.9em;">
@@ -919,6 +552,7 @@
             document.getElementById('inlineCompanyName').focus();
         }
 
+        // 編集反映
         function saveInlineEdit(e, id) {
             e.preventDefault();
             const gift = gifts.find(g => g.id === id);
@@ -932,28 +566,43 @@
             if (!dateVal) { showToast('有効期限を選択してください', 'error'); return; }
             const expirationDate = getStartOfDay(dateVal);
 
-            gift.companyName = companyName;
-            gift.giftType = giftType;
-            gift.expirationDate = expirationDate.toISOString();
+            const historyList = gift.usageHistory || [];
+            const totalUsed = historyList.reduce((sum, item) => sum + item.usedAmount, 0);
             
-            const balanceDiff = initialBalance - gift.initialBalance;
-            gift.initialBalance = initialBalance;
-            gift.currentBalance = Math.max(0, gift.currentBalance + balanceDiff);
+            const newCurrentBalance = Math.max(0, initialBalance - totalUsed);
+            const isArchived = newCurrentBalance <= 0;
 
-            saveGifts(); renderGifts(); showToast('優待を更新しました');
+            if (USE_FIREBASE && db) {
+                db.collection("gifts").doc(id).update({
+                    companyName, giftType,
+                    expirationDate: expirationDate.toISOString(),
+                    initialBalance, currentBalance: newCurrentBalance, isArchived: isArchived
+                }).then(() => { showToast('優待を更新しました'); removeInlineForm(); })
+                  .catch(err => { console.error("編集エラー:", err); showToast('更新に失敗しました', 'error'); });
+            } else {
+                gift.companyName = companyName;
+                gift.giftType = giftType;
+                gift.expirationDate = expirationDate.toISOString();
+                gift.initialBalance = initialBalance;
+                gift.currentBalance = newCurrentBalance;
+                gift.isArchived = isArchived;
+                saveToLocalStorage();
+                showToast('優待を更新しました'); removeInlineForm();
+            }
         }
 
         function openHistoryModal(id) {
             const gift = gifts.find(g => g.id === id); if (!gift) return;
             const tbody = document.getElementById('historyBody'); tbody.innerHTML = '';
             const unit = gift.giftType === '割引券・優待券' ? '枚' : '円';
+            const historyList = gift.usageHistory || [];
             
-            if (gift.usageHistory.length === 0) {
+            if (historyList.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;">履歴がありません</td></tr>';
             } else {
-                gift.usageHistory.forEach(r => {
+                historyList.forEach(r => {
                     const row = tbody.insertRow();
-                    row.innerHTML = `<td>${new Date(r.usedDate).toLocaleDateString('ja-JP')}</td><td>${r.usedAmount.toLocaleString()}${unit}</td><td>${escapeHtml(r.memo)}</td><td><button class="button-secondary" onclick="deleteUsage(${gift.id},${r.id})">削除</button></td>`;
+                    row.innerHTML = `<td>${new Date(r.usedDate).toLocaleDateString('ja-JP')}</td><td>${r.usedAmount.toLocaleString()}${unit}</td><td>${escapeHtml(r.memo)}</td><td><button class="button-secondary" onclick="deleteUsage('${gift.id}',${r.id})">削除</button></td>`;
                 });
             }
             document.getElementById('historyModal').classList.add('active');
@@ -961,24 +610,52 @@
 
         function closeHistoryModal() { document.getElementById('historyModal').classList.remove('active'); }
 
+        // 使用履歴の削除
         function deleteUsage(giftId, rId) {
             const gift = gifts.find(g => g.id === giftId); if (!gift) return;
-            const idx = gift.usageHistory.findIndex(r => r.id === rId); if (idx === -1) return;
-            gift.currentBalance += gift.usageHistory[idx].usedAmount;
-            gift.usageHistory.splice(idx, 1); gift.isArchived = false;
-            saveGifts(); renderGifts(); closeHistoryModal(); showToast('履歴を削除しました');
+            const historyList = gift.usageHistory || [];
+            const idx = historyList.findIndex(r => r.id === rId); if (idx === -1) return;
+            
+            const restoredBalance = gift.currentBalance + historyList[idx].usedAmount;
+            const newHistory = historyList.filter(r => r.id !== rId);
+
+            if (USE_FIREBASE && db) {
+                db.collection("gifts").doc(giftId).update({
+                    currentBalance: restoredBalance,
+                    usageHistory: newHistory,
+                    isArchived: false
+                }).then(() => { closeHistoryModal(); showToast('履歴を削除しました'); })
+                  .catch(err => { console.error("履歴削除エラー:", err); showToast('削除に失敗しました', 'error'); });
+            } else {
+                gift.currentBalance = restoredBalance;
+                gift.usageHistory = newHistory;
+                gift.isArchived = false;
+                saveToLocalStorage();
+                closeHistoryModal();
+                showToast('履歴を削除しました');
+            }
         }
 
+        // データ削除
         function deleteGift(id) {
-            if (confirm('本当に削除しますか？')) { gifts = gifts.filter(g => g.id !== id); saveGifts(); renderGifts(); showToast('削除しました'); }
+            if (confirm('本当に削除しますか？')) {
+                if (USE_FIREBASE && db) {
+                    db.collection("gifts").doc(id).delete()
+                        .then(() => { showToast('削除しました'); })
+                        .catch(err => { console.error("削除エラー:", err); showToast('削除に失敗しました', 'error'); });
+                } else {
+                    gifts = gifts.filter(g => g.id !== id);
+                    saveToLocalStorage();
+                    showToast('削除しました');
+                }
+            }
         }
 
+        // バックアップ・インポート機能
         function exportToJSON() {
             const blob = new Blob([JSON.stringify(gifts, null, 2)], { type: 'application/json' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `${getFormattedDate()}backup.json`;
-            a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = `${getFormattedDate()}backup.json`; a.click();
         }
 
         function importFromJSON(input) {
@@ -986,8 +663,31 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    gifts = JSON.parse(e.target.result); saveGifts(); renderGifts(); showToast('復元しました'); clearPanel();
-                } catch { showToast('失敗しました', 'error'); }
+                    const imported = JSON.parse(e.target.result);
+                    if (!Array.isArray(imported)) throw new Error("Invalid format");
+                    
+                    if (USE_FIREBASE && db) {
+                        imported.forEach(g => {
+                            delete g.id;
+                            g.usageHistory = g.usageHistory || [];
+                            db.collection("gifts").add(g);
+                        });
+                        showToast('データをFirebaseに復元（同期）しました');
+                    } else {
+                        imported.forEach(g => {
+                            g.id = 'local_' + Date.now() + Math.random().toString(36).substr(2, 5);
+                            g.usageHistory = g.usageHistory || [];
+                            gifts.push(g);
+                        });
+                        saveToLocalStorage();
+                        showToast('データをローカルに復元しました');
+                    }
+                    clearPanel();
+                    input.value = '';
+                } catch(err) { 
+                    console.error("復元エラー:", err);
+                    showToast('データの解析・復元に失敗しました', 'error'); 
+                }
             };
             reader.readAsText(file);
         }
@@ -996,24 +696,21 @@
             let csv = '\uFEFFID,銘柄名,種別,初期残高,現在残高\r\n';
             gifts.forEach(g => { csv += `${g.id},${g.companyName},${g.giftType},${g.initialBalance},${g.currentBalance}\r\n`; });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `${getFormattedDate()}list.csv`;
-            a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = `${getFormattedDate()}list.csv`; a.click();
         }
 
         function escapeHtml(str) { return str ? str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])) : ''; }
-        function saveGifts() { localStorage.setItem('gifts', JSON.stringify(gifts)); }
 
         function renderGifts() {
             const container = document.getElementById('giftsContainer');
             let activeGifts = gifts.filter(g => !g.isArchived);
 
             activeGifts.sort((a, b) => {
-                if (currentSort === 'id-desc') return b.id - a.id;
+                if (currentSort === 'id-desc') return (b.createdAt || 0) - (a.createdAt || 0);
                 if (currentSort === 'balance-desc') return b.currentBalance - a.currentBalance;
                 if (currentSort === 'exp-asc') {
-                    if (!a.expirationDate && !b.expirationDate) return b.id - a.id;
+                    if (!a.expirationDate && !b.expirationDate) return (b.createdAt || 0) - (a.createdAt || 0);
                     if (!a.expirationDate) return 1;
                     if (!b.expirationDate) return -1;
                     return new Date(a.expirationDate) - new Date(b.expirationDate);
@@ -1030,45 +727,28 @@
                         const diff = getStartOfDay(gift.expirationDate) - getStartOfDay(new Date());
                         daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
                         expText = new Date(gift.expirationDate).toLocaleDateString('ja-JP');
-                        isExpiring = daysLeft <= 30 && daysLeft > 0;
-                        isExpired = daysLeft <= 0;
+                        isExpiring = daysLeft <= 30 && daysLeft > 0; isExpired = daysLeft <= 0;
                     }
                     const per = gift.initialBalance > 0 ? (gift.currentBalance / gift.initialBalance) * 100 : 0;
-                    
                     const cardClass = (isExpiring || isExpired) ? 'gift-card is-expiring' : 'gift-card';
                     const badge = isExpired ? '<span class="badge">期限切れ</span>' : (isExpiring ? '<span class="badge">期限間近</span>' : '');
-                    
                     const unit = gift.giftType === '割引券・優待券' ? '枚' : '円';
                     
                     return `<div class="${cardClass}" id="gift-${gift.id}">
                         <div class="gift-header">
-                            <div class="gift-title-wrap">
-                                <span class="gift-title">${escapeHtml(gift.companyName)}</span>
-                                <span class="gift-type">${gift.giftType}</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                ${badge}
-                                <button class="toggle-actions-btn" onclick="toggleActions(this, ${gift.id})">+</button>
-                            </div>
+                            <div class="gift-title-wrap"><span class="gift-title">${escapeHtml(gift.companyName)}</span><span class="gift-type">${gift.giftType}</span></div>
+                            <div style="display: flex; align-items: center; gap: 8px;">${badge}<button class="toggle-actions-btn" onclick="toggleActions(this, '${gift.id}')">+</button></div>
                         </div>
                         <div class="gift-balance">
-                            <div class="balance-info">
-                                <span class="balance-label">残高</span>
-                                <span class="balance-amount">${gift.currentBalance.toLocaleString()}${unit}</span>
-                            </div>
-                            <div class="progress-container">
-                                <div class="progress-bar"><div class="progress-fill" style="width:${per}%"></div></div>
-                            </div>
+                            <div class="balance-info"><span class="balance-label">残高</span><span class="balance-amount">${gift.currentBalance.toLocaleString()}${unit}</span></div>
+                            <div class="progress-container"><div class="progress-bar"><div class="progress-fill" style="width:${per}%"></div></div></div>
                         </div>
-                        <div class="gift-expiration">
-                            <span>期限: ${expText}</span>
-                            <span>${daysLeft !== '' ? (isExpired ? '期限切れ' : 'あと ' + daysLeft + ' 日') : ''}</span>
-                        </div>
+                        <div class="gift-expiration"><span>期限: ${expText}</span><span>${daysLeft !== '' ? (isExpired ? '期限切れ' : 'あと ' + daysLeft + ' 日') : ''}</span></div>
                         <div class="gift-actions">
-                            <button onclick="openUsageForm(${gift.id})">使用する</button>
-                            <button class="button-secondary" onclick="editGift(${gift.id})">編集</button>
-                            <button class="button-secondary" onclick="openHistoryModal(${gift.id})">履歴</button>
-                            <button class="button-danger" onclick="deleteGift(${gift.id})">削除</button>
+                            <button onclick="openUsageForm('${gift.id}')">使用する</button>
+                            <button class="button-secondary" onclick="editGift('${gift.id}')">編集</button>
+                            <button class="button-secondary" onclick="openHistoryModal('${gift.id}')">履歴</button>
+                            <button class="button-danger" onclick="deleteGift('${gift.id}')">削除</button>
                         </div>
                     </div>`;
                 }).join('');
@@ -1076,18 +756,13 @@
             updateStats();
         }
 
+        // 統計情報の更新
         function updateStats() {
             const activeGifts = gifts.filter(g => !g.isArchived);
-            
-            const total = activeGifts.reduce((s, g) => {
-                if (g.giftType === '割引券・優待券') return s;
-                return s + g.currentBalance;
-            }, 0);
-            
+            const total = activeGifts.reduce((s, g) => g.giftType === '割引券・優待券' ? s : s + g.currentBalance, 0);
             const exp = activeGifts.filter(g => {
                 if (!g.expirationDate) return false;
-                const diff = getStartOfDay(g.expirationDate) - getStartOfDay(new Date());
-                const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                const days = Math.ceil((getStartOfDay(g.expirationDate) - getStartOfDay(new Date())) / (1000 * 60 * 60 * 24));
                 return days <= 30 && days > 0;
             }).length;
             document.getElementById('totalGifts').textContent = activeGifts.length;
@@ -1099,8 +774,6 @@
             const t = document.createElement('div'); t.className = `toast ${type}`; t.textContent = m; document.body.appendChild(t);
             setTimeout(() => t.remove(), 2500);
         }
-
-        renderGifts();
     </script>
 </body>
 </html>
